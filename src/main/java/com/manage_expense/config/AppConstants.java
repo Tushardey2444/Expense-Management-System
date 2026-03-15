@@ -13,7 +13,8 @@ public class AppConstants {
     public static final int ACCOUNT_DELETION = 30;
     public static final int MAX_FAILED_ATTEMPTS = 5;
     public static final long LOCK_TIME_DURATION_MINUTES = 30;
-    public static final int DELETE_BUDGET = 7;
+    public static final int DELETE_BUDGET = 365;
+
     public static final List<String> PUBLIC_URLS = List.of(
             "/api/auth/",
             "/api/auth/login-with-refresh-token"
@@ -57,6 +58,16 @@ public class AppConstants {
     public static final String OTP_VERIFIED_PREFIX = "otp:verified:";
     public static final Duration OTP_VERIFIED_TTL = Duration.ofMinutes(30);
 
+    // RedisRateLimiter (SMS OTP rate limiting by phone number)
+    public static final String SMS_OTP_RATE_LIMIT_PREFIX = "sms:otp:";
+    public static final int SMS_OTP_MAX_ATTEMPT = 5;
+    public static final Duration SMS_OTP_RATE_LIMIT_TTL = Duration.ofMinutes(10);
+
+    // RedisRateLimiter (SMS OTP verify rate limiting by phone number)
+    public static final String SMS_OTP_VERIFY_RATE_LIMIT_PREFIX = "sms:otp:verify:";
+    public static final int SMS_OTP_VERIFY_MAX_ATTEMPT = 5;
+    public static final Duration SMS_OTP_VERIFY_RATE_LIMIT_TTL = Duration.ofMinutes(10);
+
     // Helper (generateOtp), AuthServiceImpl (verify) (use email encryption or hashing in production for better security)
     public static final String OTP_SAVE = "otp:save:";
     public static final int OTP_MAX_ATTEMPT = 3;
@@ -72,12 +83,17 @@ public class AppConstants {
     public static final Duration PKCE_MAX_ATTEMPT_WINDOW = Duration.ofMinutes(5);
 
     // --------------------- Cron & Task Scheduler ---------------------
-    public static final String TEST_CRON = "*/5 * * * * *";
-    // 30 minutes cron
+    public static final String FIVE_SEC_TEST_CRON = "*/5 * * * * *";
+    public static final String TEN_SEC_TEST_CRON = "*/10 * * * * *";
+    // 30 minutes past every hour runs on daily basis
     public static final String HALF_HOUR_SCHEDULAR_CRON = "0 30 * * * *";
+    // Every hour runs on daily basis
     public static final String ONE_HOUR_SCHEDULAR_CRON = "0 0 0/1 * * *";
     // 12:00:01 AM runs on daily basis
     public static final String MIDNIGHT_CRON = "1 0 0 * * *";
+    // For April 1 at 12:01 AM:
+
+    public static final String FIRST_APRIL_CRON = "0 1 0 1 4 *";
     public static final String THREAD_NAME_PREFIX = "Scheduler-";
     public static final int POOL_SIZE = 20;
 

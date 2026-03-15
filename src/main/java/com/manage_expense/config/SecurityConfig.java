@@ -49,7 +49,7 @@ public class SecurityConfig {
                 httpSecurityCorsConfigurer.configurationSource(request -> {
                     CorsConfiguration corsConfiguration = new CorsConfiguration();
                     // for development, we can allow specific origins like localhost:3000, but for production, we should restrict it to our frontend domain
-                    corsConfiguration.setAllowedOrigins(List.of("http://localhost:3000"));
+                    corsConfiguration.setAllowedOrigins(List.of("http://localhost:3000", "http://localhost:8081", "http://localhost:8082"));
                     // for production, we can use setAllowedOriginPatterns to allow subdomains or specific patterns of origins
                     // corsConfiguration.setAllowedOriginPatterns(List.of("http://localhost:3000"));
                     corsConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
@@ -62,11 +62,13 @@ public class SecurityConfig {
         );
 
         httpSecurity.authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                .requestMatchers("/api/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/twilio/message").permitAll()
                 .requestMatchers("/api/user-profile/**").hasAnyRole(AppConstants.ROLE_ADMIN, AppConstants.ROLE_USER)
+                .requestMatchers("/api/categories/admin/**").hasRole(AppConstants.ROLE_ADMIN)
+                .requestMatchers("/api/categories/**").hasAnyRole(AppConstants.ROLE_ADMIN, AppConstants.ROLE_USER)
                 .requestMatchers("/api/budget/**").hasAnyRole(AppConstants.ROLE_ADMIN, AppConstants.ROLE_USER)
                 .requestMatchers("/api/item/**").hasAnyRole(AppConstants.ROLE_ADMIN, AppConstants.ROLE_USER)
-                .requestMatchers("/test/api/sms/**").hasRole(AppConstants.ROLE_ADMIN)
+                .requestMatchers("/api/twilio/test/**").hasRole(AppConstants.ROLE_ADMIN)
                 .requestMatchers("/test/api/media/**").hasRole(AppConstants.ROLE_ADMIN)
                 .anyRequest().authenticated()
         );

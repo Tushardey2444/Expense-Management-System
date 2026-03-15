@@ -14,10 +14,6 @@ import java.time.LocalDate;
 @ValidDateRange
 public class BudgetCreateRequest implements DateRangeAware {
 
-    @NotNull(message = "Budget name is required")
-    @Size(max = 50, message = "Budget name must be at most 50 characters")
-    private String budgetName;
-
     @NotNull(message = "Amount is required")
     @DecimalMin(value = "0.00", message = "Amount must be a positive value or zero")
     @Digits(integer = 19, fraction = 2, message = "Amount format is invalid")
@@ -37,4 +33,6 @@ public class BudgetCreateRequest implements DateRangeAware {
     @Size(max = 200, message = "Notes must be at most 200 characters")
     private String notes;
 
+    @NotNull(message = "categoryId is required")
+    private Long categoryId;
 }

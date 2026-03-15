@@ -19,7 +19,7 @@ public class BudgetResponse {
     private int budgetId;
 
     @JsonView({AppViews.Create.class, AppViews.Update.class})
-    private String budgetName;
+    private int categoryId;
 
     @JsonView({AppViews.Create.class, AppViews.Update.class})
     private long version;

@@ -10,14 +10,12 @@ public class ItemCreateRequest {
     @NotNull(message = "BudgetId is required!!")
     private Integer budgetId;
 
+    @NotNull(message = "SubCategoryId is required!!")
+    private Long subCategoryId;
+
     @NotNull(message = "Item name is required!!")
     @Size(max = 100, message = "Item name must be at most 100 characters")
     private String itemName;
-
-    @NotNull(message = "Item Quantity is required!!")
-    @Min(value = 1, message = "Minimum value of item quantity is 1")
-    @Max(value = 1_000_000, message = "Maximum value of item quantity is 1_000_000")
-    private Integer itemQuantity;
 
     @NotNull(message = "version is required!!")
     private Long version;

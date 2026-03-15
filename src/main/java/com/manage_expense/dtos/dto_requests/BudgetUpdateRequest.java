@@ -16,9 +16,6 @@ public class BudgetUpdateRequest implements DateRangeAware {
     @NotNull(message = "BudgetId is required")
     private Integer budgetId;
 
-    @Size(max = 50, message = "Budget name must be at most 50 characters")
-    private String budgetName;
-
     @Digits(integer = 19, fraction = 2, message = "Amount format is invalid")
     @DecimalMin(value = "0.00", message = "Amount must be a positive value or zero")
     private BigDecimal amount;

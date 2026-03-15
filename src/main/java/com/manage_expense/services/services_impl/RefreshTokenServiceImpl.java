@@ -11,6 +11,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Duration;
@@ -65,6 +66,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     }
 
     @Scheduled(cron = AppConstants.ONE_HOUR_SCHEDULAR_CRON)
+    @Transactional
     public void deleteExpiredRefreshTokens(){
         refreshTokenRepository.deleteByExpiryDateBefore(Instant.now());
     }

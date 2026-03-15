@@ -13,10 +13,10 @@ public class ItemUpdateRequest {
     @NotNull(message = "ItemId is required!!")
     private Integer itemId;
 
+    private Long subCategoryId;
+
     @Size(max = 100, message = "Item name must be at most 100 characters")
     private String itemName;
-
-    private Integer itemQuantity;
 
     @NotNull(message = "Version is required!!")
     private Long version;

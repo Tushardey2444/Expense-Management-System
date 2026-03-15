@@ -5,11 +5,13 @@ import com.manage_expense.dtos.dto_requests.ItemDeleteRequest;
 import com.manage_expense.dtos.dto_requests.ItemUpdateRequest;
 import com.manage_expense.dtos.dto_responses.*;
 import com.manage_expense.entities.Budget;
+import com.manage_expense.entities.Category;
 import com.manage_expense.entities.Items;
 import com.manage_expense.entities.User;
 import com.manage_expense.enums.BudgetStatus;
 import com.manage_expense.helper.Helper;
 import com.manage_expense.repository.BudgetRepository;
+import com.manage_expense.repository.CategoryRepository;
 import com.manage_expense.repository.ItemRepository;
 import com.manage_expense.repository.UserRepository;
 import com.manage_expense.services.services_template.ItemService;
@@ -46,6 +48,8 @@ public class ItemServiceImpl implements ItemService {
 
     @Autowired
     private Helper helper;
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     @Transactional
     @Override
@@ -56,6 +60,15 @@ public class ItemServiceImpl implements ItemService {
         Budget budget = budgetRepository.findBudgetByUser(req.getBudgetId(), user.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Budget not found"));
+
+        Category parentCategory = budget.getCategory();
+
+        Category subCategory = categoryRepository.findSubCategoryByCategoryIdAndUserId(req.getSubCategoryId(), user.getUserId())
+                .orElseThrow(() -> new IllegalStateException("Provided subCategoryId does not exist"));
+
+        if(!parentCategory.getCategoryId().equals(subCategory.getParentCategory().getCategoryId())){
+            throw new IllegalStateException("sub category does not belongs to the budget's parent category !!");
+        }
 
         // Optimistic lock check
         if (!Objects.equals(budget.getVersion(), req.getVersion())) {
@@ -69,31 +82,30 @@ public class ItemServiceImpl implements ItemService {
         if (budget.getBudgetStatus() != BudgetStatus.STARTED) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Cannot add items to a budget with this status"
+                    "Cannot add items to a budget without STARTED status"
             );
         }
 
         // Create item
         Items item = Items.builder()
                 .itemName(req.getItemName())
-                .itemQuantity(req.getItemQuantity())
                 .price(req.getPrice())
                 .budget(budget)
+                .category(subCategory)
                 .build();
 
-        BigDecimal itemTotal = item.getTotalAmount();
-
         budget.getItems().add(item);
-        budget.setAmountSpend(budget.getAmountSpend().add(itemTotal));
+        budget.setAmountSpend(budget.getAmountSpend().add(item.getPrice()));
 
         Items savedItem = itemRepository.save(item);
         budgetRepository.flush();
 
         // Map response AFTER version increment
         ItemResponse response = modelMapper.map(savedItem, ItemResponse.class);
+        response.setSubCategoryId(subCategory.getCategoryId());
+        response.setSubCategoryName(subCategory.getCategoryName());
         response.setBudgetId(budget.getBudgetId());
         response.setAmountSpend(budget.getAmountSpend());
-        response.setOverallAmount(itemTotal);
         response.setVersion(budget.getVersion());
 
         return response;
@@ -109,9 +121,19 @@ public class ItemServiceImpl implements ItemService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Budget not found"));
 
+        Category parentCategory = budget.getCategory();
+
+        Category subCategory = categoryRepository.findSubCategoryByCategoryIdAndUserId(req.getSubCategoryId(), user.getUserId())
+                .orElseThrow(() -> new IllegalStateException("Provided subCategoryId does not exist"));
+
+        if(!parentCategory.getCategoryId().equals(subCategory.getParentCategory().getCategoryId())){
+            throw new IllegalStateException("sub category does not belongs to the budget's parent category !!");
+        }
+
         Items item = itemRepository.findItemByBudget(req.getItemId(), budget.getBudgetId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Item not found"));
+
 
         // Optimistic lock check (ALWAYS)
         if (!Objects.equals(req.getVersion(), budget.getVersion())) {
@@ -122,7 +144,7 @@ public class ItemServiceImpl implements ItemService {
         }
 
         // Save original total
-        BigDecimal oldTotal = item.getTotalAmount();
+        BigDecimal oldTotal = item.getPrice();
 
         /* ----------- Updates ----------- */
 
@@ -130,14 +152,9 @@ public class ItemServiceImpl implements ItemService {
             item.setItemName(req.getItemName());
         }
 
-        if (req.getItemQuantity() != null) {
-            if (req.getItemQuantity() <= 0) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, "Quantity must be greater than 0");
-            }
-            item.setItemQuantity(req.getItemQuantity());
+        if(!item.getCategory().getCategoryId().equals(subCategory.getCategoryId())){
+            item.setCategory(subCategory);
         }
-
 
         if (req.getPrice() != null) {
             if (req.getPrice().compareTo(BigDecimal.ZERO) <= 0) {
@@ -151,9 +168,8 @@ public class ItemServiceImpl implements ItemService {
         Items savedItem = itemRepository.save(item);
 
         // Recalculate budget spend
-        BigDecimal newTotal = savedItem.getTotalAmount();
         budget.setAmountSpend(
-                budget.getAmountSpend().subtract(oldTotal).add(newTotal)
+                budget.getAmountSpend().subtract(oldTotal).add(req.getPrice())
         );
 
         // IMPORTANT: save budget to increment version
@@ -163,9 +179,10 @@ public class ItemServiceImpl implements ItemService {
 
         // Response
         ItemResponse response = modelMapper.map(savedItem, ItemResponse.class);
+        response.setSubCategoryId(subCategory.getCategoryId());
+        response.setSubCategoryName(subCategory.getCategoryName());
         response.setBudgetId(savedBudget.getBudgetId());
         response.setAmountSpend(savedBudget.getAmountSpend());
-        response.setOverallAmount(newTotal);
         response.setVersion(savedBudget.getVersion());
 
         return response;
@@ -193,11 +210,13 @@ public class ItemServiceImpl implements ItemService {
             );
         }
 
-        BigDecimal overallAmount = item.getTotalAmount();
+        BigDecimal price = item.getPrice();
+        item.setBudget(null);
+        item.setCategory(null);
         itemRepository.deleteById(item.getItemId());
 
         budget.setAmountSpend(
-                budget.getAmountSpend().subtract(overallAmount)
+                budget.getAmountSpend().subtract(price)
         );
 
         // IMPORTANT: save budget to increment version
@@ -207,7 +226,6 @@ public class ItemServiceImpl implements ItemService {
         ItemResponse response = modelMapper.map(item, ItemResponse.class);
         response.setBudgetId(savedBudget.getBudgetId());
         response.setAmountSpend(savedBudget.getAmountSpend());
-        response.setOverallAmount(overallAmount);
         response.setVersion(savedBudget.getVersion());
 
         return response;
@@ -227,12 +245,7 @@ public class ItemServiceImpl implements ItemService {
         Sort sort=(sortDir.equalsIgnoreCase("desc"))?(Sort.by(sortBy).descending()):(Sort.by(sortBy).ascending());
         Pageable pageable = PageRequest.of(pageNumber,pageSize,sort);
         Page<Items> pageItems=itemRepository.findItemsByBudget(budget.getBudgetId(), pageable);
-        PageableResponse<ItemsResponseDto> pageableResponse =  helper.getPageableResponse(pageItems, ItemsResponseDto.class);
-        List<ItemsResponseDto> itemsResponseDtos = pageableResponse.getContent();
-        for (ItemsResponseDto itemsResponseDto: itemsResponseDtos) {
-            itemsResponseDto.setOverallAmount(itemsResponseDto.getPrice().multiply(BigDecimal.valueOf(itemsResponseDto.getItemQuantity())));
-        }
-        return pageableResponse;
+        return helper.getPageableResponse(pageItems, ItemsResponseDto.class);
     }
 
     @Transactional
@@ -268,7 +281,7 @@ public class ItemServiceImpl implements ItemService {
         }
 
         BigDecimal totalAmountToSubtract = itemsToDelete.stream()
-                .map(Items::getTotalAmount)
+                .map(Items::getPrice)
                 .filter(Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
@@ -295,7 +308,6 @@ public class ItemServiceImpl implements ItemService {
                     ItemResponse response = modelMapper.map(item, ItemResponse.class);
                     response.setBudgetId(savedBudget.getBudgetId());
                     response.setAmountSpend(savedBudget.getAmountSpend());
-                    response.setOverallAmount(item.getTotalAmount());
                     response.setVersion(savedBudget.getVersion());
                     return response;
                 })

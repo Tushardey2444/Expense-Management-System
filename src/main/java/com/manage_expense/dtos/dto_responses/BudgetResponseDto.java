@@ -15,7 +15,6 @@ import java.time.LocalDateTime;
 @Setter
 public class BudgetResponseDto {
     private int budgetId;
-    private String budgetName;
     private BigDecimal amount;
     private BigDecimal amountSpend;
     private Currency currency;
@@ -27,4 +26,5 @@ public class BudgetResponseDto {
     private long version;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long categoryId;
 }

@@ -1,6 +1,7 @@
 package com.manage_expense.controllers;
 
 import com.manage_expense.dtos.dto_requests.UserProfileRequest;
+import com.manage_expense.dtos.dto_requests.UserProfileVerifyMobile;
 import com.manage_expense.dtos.dto_requests.VerifyCodeMobileRequest;
 import com.manage_expense.dtos.dto_responses.ApiResponse;
 import com.manage_expense.services.services_template.UserProfileService;
@@ -36,9 +37,10 @@ public class UserProfileController {
     }
 
     @PostMapping("/verify-mobile-number")
-    @Operation(summary = "3. Verify Mobile Number", description = "Send a verification code to the user's mobile number for verification")
-    public ResponseEntity<ApiResponse> verifyMobileNumber(Authentication authentication){
-        return ResponseEntity.ok(userProfileService.verifyMobileNumber(authentication.getName()));
+    @Operation(summary = "3. Verify Mobile Number", description = "Send a verification code to the user's provided mobile number for verification")
+    public ResponseEntity<ApiResponse> verifyMobileNumber(Authentication authentication,
+                                                          @Valid @RequestBody UserProfileVerifyMobile userProfileVerifyMobile){
+        return ResponseEntity.ok(userProfileService.verifyMobileNumber(authentication.getName(), userProfileVerifyMobile));
     }
 
     @PostMapping("/verify-code-mobile-number")

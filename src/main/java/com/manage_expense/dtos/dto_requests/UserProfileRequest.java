@@ -23,9 +23,5 @@ public class UserProfileRequest {
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd-MM-yyyy")
     private LocalDate dateOfBirth;
 
-    @Pattern(regexp = "^[6-9]\\d{9}$", message = "Please enter valid mobile number!!")
-    @Length(min = 10, max = 10, message = "Please enter 10 digit mobile number!!")
-    private String phoneNumber;
-
     private Gender gender;
 }

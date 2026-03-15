@@ -84,6 +84,9 @@ public class AuthServiceImpl implements AuthService {
     @Value("${blank_profile_url}")
     private String profilePictureUrl;
 
+//    @Value("${frontend_redirect_url_UI}")
+//    private String frontendURL;
+
     @Autowired
     private MailMessageProducer mailMessageProducer;
 
@@ -650,7 +653,7 @@ public class AuthServiceImpl implements AuthService {
         response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
 
          /* Redirect to React */
-        response.sendRedirect("http://localhost:3000/dashboard");
+        response.sendRedirect("exp://192.168.31.237:8081/dashboard");
     }
 
     private String getClientIp(HttpServletRequest request) {

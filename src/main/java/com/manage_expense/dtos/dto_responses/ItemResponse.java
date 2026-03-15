@@ -19,6 +19,12 @@ public class ItemResponse {
     @JsonView({AppViews.Create.class,AppViews.Update.class,AppViews.Delete.class})
     private int budgetId;
 
+    @JsonView({AppViews.Create.class,AppViews.Update.class})
+    private Long subCategoryId;
+
+    @JsonView({AppViews.Create.class,AppViews.Update.class})
+    private String subCategoryName;
+
     @JsonView({AppViews.Create.class,AppViews.Update.class,AppViews.Delete.class})
     private long version;
 
@@ -29,13 +35,7 @@ public class ItemResponse {
     private String itemName;
 
     @JsonView({AppViews.Create.class,AppViews.Update.class})
-    private int itemQuantity;
-
-    @JsonView({AppViews.Create.class,AppViews.Update.class})
     private int price;
-
-    @JsonView({AppViews.Create.class,AppViews.Update.class,AppViews.Delete.class})
-    private BigDecimal overallAmount;
 
     @JsonView({AppViews.Create.class,AppViews.Update.class})
     private LocalDateTime createdAt;

@@ -46,4 +46,10 @@ public interface ItemRepository extends JpaRepository<Items,Integer> {
             @Param("ids") List<Integer> ids,
             @Param("budgetId") int budgetId
     );
+
+    Page<Items> findByBudgetBudgetIdAndCategoryCategoryId(
+            int budgetId,
+            Long categoryId,
+            Pageable pageable
+    );
 }

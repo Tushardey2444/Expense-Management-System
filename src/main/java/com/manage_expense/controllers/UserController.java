@@ -4,10 +4,7 @@ import com.manage_expense.config.AppConstants;
 import com.manage_expense.dtos.dto_requests.ChangePasswordRequest;
 import com.manage_expense.dtos.dto_requests.DeleteUserRequest;
 import com.manage_expense.dtos.dto_requests.GoogleAccountPasswordRequest;
-import com.manage_expense.dtos.dto_responses.ApiResponse;
-import com.manage_expense.dtos.dto_responses.PageableResponse;
-import com.manage_expense.dtos.dto_responses.UserResponseDto;
-import com.manage_expense.dtos.dto_responses.UsersResponseDto;
+import com.manage_expense.dtos.dto_responses.*;
 import com.manage_expense.services.services_template.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,6 +16,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.Authentication;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/user")
@@ -86,8 +85,15 @@ public class UserController {
     @PreAuthorize("hasAnyRole('"+ AppConstants.ROLE_USER +"', '"+AppConstants.ROLE_ADMIN+"')")
     @PostMapping("/logout-user")
     @Operation(summary = "2. Logout User", description = "Allow authenticated users to log out from the current session. Accessible by both regular users and admin users.")
-    public ResponseEntity<ApiResponse> logoutUser(HttpServletRequest request, HttpServletResponse response){
+    public ResponseEntity<ApiResponse> logoutUser(Authentication authentication, HttpServletRequest request, HttpServletResponse response){
         String sessionId = (String) request.getAttribute("sessionId");
-        return ResponseEntity.ok(userService.logoutUser(sessionId, response));
+        return ResponseEntity.ok(userService.logoutUser(authentication.getName(), sessionId, response));
+    }
+
+    @PreAuthorize("hasAnyRole('"+ AppConstants.ROLE_USER +"', '"+AppConstants.ROLE_ADMIN+"')")
+    @GetMapping("/get-active-user-sessions")
+    @Operation(summary = "9. Active User Sessions", description = "Fetch all the user's active sessions.")
+    public ResponseEntity<List<UserSessionResponse>> getActiveUserSessions(Authentication authentication){
+        return ResponseEntity.ok(userService.getActiveUserSessions(authentication.getName()));
     }
 }

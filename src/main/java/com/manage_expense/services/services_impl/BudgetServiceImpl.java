@@ -6,10 +6,12 @@ import com.manage_expense.dtos.dto_requests.BudgetCreateRequest;
 import com.manage_expense.dtos.dto_requests.BudgetUpdateRequest;
 import com.manage_expense.dtos.dto_responses.*;
 import com.manage_expense.entities.Budget;
+import com.manage_expense.entities.Category;
 import com.manage_expense.entities.User;
 import com.manage_expense.enums.BudgetStatus;
 import com.manage_expense.helper.Helper;
 import com.manage_expense.repository.BudgetRepository;
+import com.manage_expense.repository.CategoryRepository;
 import com.manage_expense.repository.UserRepository;
 import com.manage_expense.services.services_template.BudgetService;
 import org.modelmapper.ModelMapper;
@@ -44,16 +46,22 @@ public class BudgetServiceImpl implements BudgetService {
     @Autowired
     private ModelMapper modelMapper;
 
+    @Autowired
+    private CategoryRepository categoryRepository;
+
     @Transactional
     @Override
     public BudgetResponse createBudget(String email, BudgetCreateRequest budgetCreateRequest) {
         User user = userRepository.findBudgetsByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email."));
+
+        Category parentCategory = categoryRepository.findDefaultOrCustomParentCategoryWithSubCategoriesByUserId(budgetCreateRequest.getCategoryId(), user.getUserId())
+                .orElseThrow(() -> new IllegalStateException("Parent category not found with provided categoryId"));
+
         if(budgetCreateRequest.getEndDate().isAfter(budgetCreateRequest.getStartDate())) {
             boolean startsInFuture = budgetCreateRequest.getStartDate().isAfter(LocalDate.now());
             boolean isActive = !startsInFuture;
             BudgetStatus budgetStatus = isActive ? BudgetStatus.STARTED : BudgetStatus.QUEUED;
             Budget budget = Budget.builder()
-                    .budgetName(budgetCreateRequest.getBudgetName())
                     .amount(budgetCreateRequest.getAmount())
                     .amountSpend(BigDecimal.ZERO)
                     .currency(budgetCreateRequest.getCurrency())
@@ -63,8 +71,8 @@ public class BudgetServiceImpl implements BudgetService {
                     .isActive(isActive)
                     .budgetStatus(budgetStatus)
                     .user(user)
+                    .category(parentCategory)
                     .build();
-            user.getBudgets().add(budget);
             Budget savedBudget = budgetRepository.save(budget);
             budgetRepository.flush();
             return modelMapper.map(savedBudget, BudgetResponse.class);
@@ -99,26 +107,14 @@ public class BudgetServiceImpl implements BudgetService {
 
         LocalDate today = LocalDate.now();
 
-        /* ---------------- Amount ---------------- */
-        if (req.getAmount() != null) {
-            if (budget.getBudgetStatus() == BudgetStatus.STARTED) {
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST,
-                        "Amount cannot be changed after budget has started");
-            }
-
-            budget.setAmount(req.getAmount());
-        }
-
         /* ---------------- Start Date ---------------- */
         if (req.getStartDate() != null) {
-            if (!budget.getStartDate().isAfter(today)) {
+            if(budget.getBudgetStatus() == BudgetStatus.STARTED){
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
                         "Start date cannot be changed after budget has started");
             }
-
-            if (req.getStartDate().isEqual(today)) {
+            if (req.getStartDate().isEqual(today) || req.getStartDate().isBefore(today)) {
                 budget.setActive(true);
                 budget.setBudgetStatus(BudgetStatus.STARTED);
             }
@@ -128,7 +124,8 @@ public class BudgetServiceImpl implements BudgetService {
         /* ---------------- End Date ---------------- */
         if (req.getEndDate() != null) {
 
-            if (!req.getEndDate().isAfter(budget.getStartDate())) {
+            if (!req.getEndDate().isAfter(budget.getStartDate()) || !req.getEndDate().isAfter(today)
+            ) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
                         "End date must be after start date");
@@ -136,13 +133,14 @@ public class BudgetServiceImpl implements BudgetService {
             budget.setEndDate(req.getEndDate());
         }
 
+        /* ---------------- Amount ---------------- */
+        if (req.getAmount() != null) {
+            budget.setAmount(req.getAmount());
+        }
+
         /* ---------------- Notes ---------------- */
         if (req.getNotes() != null) {
             budget.setNotes(req.getNotes());
-        }
-
-        if(req.getBudgetName() != null){
-            budget.setBudgetName(req.getBudgetName());
         }
 
         budgetRepository.save(budget);
@@ -198,7 +196,7 @@ public class BudgetServiceImpl implements BudgetService {
 
     @Override
     public BudgetResponseDto getBudget(String email, int budgetId) {
-        User user = userRepository.findForAuthByEmail(email)
+        userRepository.findForAuthByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         Budget budget = budgetRepository.findById(budgetId)
@@ -241,8 +239,9 @@ public class BudgetServiceImpl implements BudgetService {
         }
 
         for (Budget budget : budgets) {
-            user.getBudgets().remove(budget);
             budget.setUser(null);
+            budget.setCategory(null);
+            user.getBudgets().remove(budget);
         }
 
         return ApiResponse.builder()
@@ -264,6 +263,7 @@ public class BudgetServiceImpl implements BudgetService {
                         "Budget not found, or does not belong to the user"
                 ));
 
+        budget.setCategory(null);
         user.getBudgets().remove(budget);
 
         return ApiResponse.builder()
@@ -306,20 +306,16 @@ public class BudgetServiceImpl implements BudgetService {
     }
 
     @Transactional
-    @Scheduled(cron = AppConstants.MIDNIGHT_CRON)
+    @Scheduled(cron = AppConstants.FIRST_APRIL_CRON)
     public void deleteCompletedBudget() {
 
         LocalDate today = LocalDate.now();
 
         List<Budget> budgetsToDelete = budgetRepository
-                .findByBudgetStatus(BudgetStatus.COMPLETED)
-                .stream()
-                .filter(budget ->
-                        budget.getEndDate()
-                                .plusDays(AppConstants.DELETE_BUDGET)
-                                .isBefore(today)
-                )
-                .toList();
+                .findByBudgetStatusAndEndDateBefore(
+                        BudgetStatus.COMPLETED,
+                        today
+                );
 
         if (!budgetsToDelete.isEmpty()) {
             budgetRepository.deleteAll(budgetsToDelete);

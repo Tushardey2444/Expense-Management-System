@@ -36,7 +36,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -323,7 +325,9 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     @Override
-    public ApiResponse logoutUser(String sessionId, HttpServletResponse response) {
+    public ApiResponse logoutUser(String email, String sessionId, HttpServletResponse response) {
+        userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
+
         UserSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new RuntimeException("Session not found"));
 
@@ -357,6 +361,23 @@ public class UserServiceImpl implements UserService {
                 .status(HttpStatus.OK)
                 .success(true)
                 .build();
+    }
+
+    @Override
+    public List<UserSessionResponse> getActiveUserSessions(String email) {
+        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
+
+        List<UserSession> sessions =
+                sessionRepository.findActiveSessions(user.getUserId());
+
+        List<UserSessionResponse> sessionResponses = new ArrayList<>();
+
+        for(UserSession session: sessions){
+            UserSessionResponse userSessionResponse = modelMapper.map(session, UserSessionResponse.class);
+            sessionResponses.add(userSessionResponse);
+        }
+
+        return sessionResponses;
     }
     /*
     ResponseCookie:

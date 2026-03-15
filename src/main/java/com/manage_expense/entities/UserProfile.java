@@ -5,6 +5,7 @@ import com.manage_expense.enums.Gender;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Date;
 
@@ -24,9 +25,12 @@ public class UserProfile {
 
     private String lastName;
 
+    @Column(unique = true)
     private String phoneNumber;
 
     private boolean isPhoneNumberVerified;
+
+    private Instant phoneNumberUpdatedAt;
 
     private String profilePictureUrl;
 

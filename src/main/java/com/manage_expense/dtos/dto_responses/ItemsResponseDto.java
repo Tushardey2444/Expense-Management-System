@@ -13,9 +13,9 @@ import java.time.LocalDateTime;
 public class ItemsResponseDto {
     private int itemId;
     private String itemName;
-    private int itemQuantity;
     private BigDecimal price;
-    private BigDecimal overallAmount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long categoryId;
+    private String categoryName;
 }
