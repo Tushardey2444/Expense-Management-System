@@ -1,5 +1,6 @@
 package com.manage_expense.dtos.dto_requests;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -14,5 +15,6 @@ public class CreateCategoryRequest {
     @Size(max = 200, message = "Description cannot exceed 200 characters")
     private String description;
 
+    @Schema(nullable = true, example = "null")
     private Long parentCategoryId;
 }

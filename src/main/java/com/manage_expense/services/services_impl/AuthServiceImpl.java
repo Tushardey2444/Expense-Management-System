@@ -266,13 +266,14 @@ public class AuthServiceImpl implements AuthService {
 //        response.sendRedirect("http://localhost:3000/dashboard");
 
         return ApiResponse.builder()
-                .message("Login successful!!")
+                .message("Login successfully")
                 .status(HttpStatus.OK)
                 .success(true)
                 .build();
     }
 
     @Override
+    @Transactional
     public ApiResponse loginWithRefreshToken(RefreshTokenRequest refreshTokenRequest, HttpServletRequest request, HttpServletResponse response) throws IOException {
         String refreshTokenValue = JwtCookieUtil.extractToken(request, AppConstants.REFRESH_TOKEN);
         if(refreshTokenValue == null){
@@ -284,7 +285,7 @@ public class AuthServiceImpl implements AuthService {
         }
         RefreshToken savedRefreshToken = refreshTokenService.findByToken(refreshTokenValue);
         if (!refreshTokenService.verifyRefreshToken(savedRefreshToken)) {
-            throw new RuntimeException("Invalid or expired refresh token, please login again!!");
+            throw new IllegalStateException("Invalid or expired refresh token, please login again!!");
         }
         User user = savedRefreshToken.getUser();
         Instant now = Instant.now();
@@ -410,7 +411,7 @@ public class AuthServiceImpl implements AuthService {
 //        response.sendRedirect("http://localhost:3000/dashboard");
 
         return ApiResponse.builder()
-                .message("Login successful!!")
+                .message("Login successfully")
                 .status(HttpStatus.OK)
                 .success(true)
                 .build();
@@ -445,13 +446,13 @@ public class AuthServiceImpl implements AuthService {
     public void googleCallback(String code, String state, String oauthError, HttpServletRequest request, HttpServletResponse response) throws MessagingException, Exception {
         // Handle OAuth errors (e.g., user denied consent)
         if (oauthError != null) {
-            response.sendRedirect("http://localhost:3000/login?error=oauth_error");
+            response.sendRedirect("exp://192.168.31.237:8081/login?error=oauth_error");
             return;
         }
 
         // Validate required parameters
         if (code == null || state == null) {
-            response.sendRedirect("http://localhost:3000/login?error=missing_params");
+            response.sendRedirect("exp://192.168.31.237:8081/login?error=missing_params");
             return;
         }
 
@@ -517,7 +518,7 @@ public class AuthServiceImpl implements AuthService {
                 Instant deleteAt = userProfile.getUpdateAt().toInstant().plus(30, ChronoUnit.DAYS);
                 if (deleteAt.isAfter(Instant.now())) {
                     long remainingDays = Duration.between(Instant.now(), deleteAt).toDays();
-                    response.sendRedirect("http://localhost:3000/login?error=Account_Deleted&remainingDays=" + remainingDays);
+                    response.sendRedirect("exp://192.168.31.237:8081/login?error=Account_Deleted&remainingDays=" + remainingDays);
                     return;
                 } else {
                     user.getRoles().clear();
@@ -572,7 +573,6 @@ public class AuthServiceImpl implements AuthService {
 
             }catch (Exception ex) {
                     log.error("Failed to publish email message", ex);
-                    throw new PublishingException("Could not queue email", ex);
             }
 
         } else {
@@ -821,7 +821,6 @@ public class AuthServiceImpl implements AuthService {
 
             }catch (Exception ex) {
                 log.error("Failed to publish email message", ex);
-                throw new PublishingException("Could not queue email", ex);
             }
 
             return ApiResponse.builder()
@@ -855,7 +854,6 @@ public class AuthServiceImpl implements AuthService {
 
             }catch (Exception ex) {
                 log.error("Failed to publish email message", ex);
-                throw new PublishingException("Could not queue email", ex);
             }
 
             return ApiResponse.builder()
@@ -973,7 +971,6 @@ public class AuthServiceImpl implements AuthService {
 
                 }catch (Exception ex) {
                     log.error("Failed to publish email message", ex);
-                    throw new PublishingException("Could not queue email", ex);
                 }
 
                 return ApiResponse.builder()

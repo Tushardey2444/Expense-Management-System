@@ -15,6 +15,8 @@ public class CategoryResponse {
 
     private String categoryName;
 
+    private String categoryIcon;
+
     private String description;
 
     private boolean isDefault;

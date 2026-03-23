@@ -54,7 +54,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     @Override
     public RefreshToken findByToken(String refreshToken) {
         return refreshTokenRepository.findByRefreshToken(refreshToken)
-                .orElseThrow(() -> new RuntimeException("Invalid RefreshToken !!"));
+                .orElseThrow(() -> new IllegalArgumentException("Invalid RefreshToken !!"));
     }
 
     public boolean verifyRefreshToken(RefreshToken refreshToken) {

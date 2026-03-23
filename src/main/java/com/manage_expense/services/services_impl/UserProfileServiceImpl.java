@@ -100,7 +100,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("Please enter valid email which is registered with us!!"));
         String url = null;
         if(file==null){
-            throw new IOException("Please select a profile picture of size upto 2MB !!");
+            throw new IOException("Please select a profile picture of size upto 1MB !!");
         }
         if(!file.isEmpty()){
             String originalName = file.getOriginalFilename();
@@ -115,6 +115,8 @@ public class UserProfileServiceImpl implements UserProfileService {
                     }catch (IOException e){
                         throw new IOException("Failed to upload profile picture, please try again!!");
                     }
+                }else{
+                    throw new IllegalArgumentException("File extension supported only JPG, PNG and JPEG !!");
                 }
             }
         }
@@ -122,7 +124,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         ApiResponse apiResponse = ApiResponse.builder().build();
 
         if(url==null){
-            apiResponse.setMessage("Provided file is not valid, please select a valid profile picture of size upto 2MB.");
+            apiResponse.setMessage("Provided file is not valid, please select a valid profile picture of size upto 1MB.");
             apiResponse.setStatus(HttpStatus.BAD_REQUEST);
             apiResponse.setSuccess(false);
             return apiResponse;
@@ -137,7 +139,7 @@ public class UserProfileServiceImpl implements UserProfileService {
     }
 
     @Override
-    @Transactional(noRollbackFor = PublishingException.class)
+    @Transactional
     public ApiResponse verifyMobileNumber(String email, UserProfileVerifyMobile userProfileVerifyMobile) {
 
         rateLimiter.checkRateLimit(
@@ -177,7 +179,7 @@ public class UserProfileServiceImpl implements UserProfileService {
         userProfile.setPhoneNumber(phoneNumber);
         userProfile.setPhoneNumberVerified(false);
         userProfile.setPhoneNumberUpdatedAt(Instant.now());
-        UserProfile savedUserProfile = null;
+        UserProfile savedUserProfile;
 
         try {
             savedUserProfile = userProfileRepository.save(userProfile);
@@ -208,7 +210,7 @@ public class UserProfileServiceImpl implements UserProfileService {
                 .build();
     }
 
-    @Transactional(noRollbackFor = PublishingException.class)
+    @Transactional
     @Override
     public ApiResponse checkVerificationCode(String email, VerifyCodeMobileRequest verifyCodeMobileRequest) {
 
@@ -256,7 +258,6 @@ public class UserProfileServiceImpl implements UserProfileService {
 
             } catch (Exception ex) {
                 log.error("Failed to publish sms message for phone {}", mobileNumber, ex);
-                throw new PublishingException("Could not queue sms", ex);
             }
 
             return isVerified;

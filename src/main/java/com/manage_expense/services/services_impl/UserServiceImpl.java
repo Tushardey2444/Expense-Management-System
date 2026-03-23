@@ -86,7 +86,7 @@ public class UserServiceImpl implements UserService {
         return modelMapper.map(user, UserResponseDto.class);
     }
 
-    @Transactional(noRollbackFor = PublishingException.class)
+    @Transactional
     @Override
     public ApiResponse changePassword(String email, ChangePasswordRequest changePasswordRequest) {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
@@ -114,7 +114,6 @@ public class UserServiceImpl implements UserService {
 
         }catch (Exception ex) {
             log.error("Failed to publish email message", ex);
-            throw new PublishingException("Could not queue email", ex);
         }
 
         UserProfile userProfile = user.getUserProfile();
@@ -129,7 +128,6 @@ public class UserServiceImpl implements UserService {
                 mailMessageProducer.sendSms(mailMessageDto);
             }catch (Exception ex) {
                 log.error("Failed to publish sms message", ex);
-                throw new PublishingException("Could not queue sms", ex);
             }
         }
         return ApiResponse.builder()
@@ -139,7 +137,7 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
 
-    @Transactional(noRollbackFor = PublishingException.class)
+    @Transactional
     @Override
     public ApiResponse googleAccountPassword(String name, GoogleAccountPasswordRequest request) {
         User user = userRepository.findByEmail(name).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
@@ -170,7 +168,6 @@ public class UserServiceImpl implements UserService {
 
         }catch (Exception ex) {
             log.error("Failed to publish email message", ex);
-            throw new PublishingException("Could not queue email", ex);
         }
 
         UserProfile userProfile = user.getUserProfile();
@@ -189,7 +186,6 @@ public class UserServiceImpl implements UserService {
                 mailMessageProducer.sendSms(mailMessageDto);
             }catch (Exception ex) {
                 log.error("Failed to publish sms message", ex);
-                throw new PublishingException("Could not queue sms", ex);
             }
         }
 
@@ -200,7 +196,7 @@ public class UserServiceImpl implements UserService {
                 .build();
     }
 
-    @Transactional(noRollbackFor = PublishingException.class)
+    @Transactional
     @Override
     public ApiResponse deleteUser(String email, DeleteUserRequest deleteUserRequest) {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
@@ -227,7 +223,6 @@ public class UserServiceImpl implements UserService {
 
         }catch (Exception ex) {
             log.error("Failed to publish email message", ex);
-            throw new PublishingException("Could not queue email", ex);
         }
 
         String mobileNumber = userProfile.getPhoneNumber();
@@ -241,7 +236,6 @@ public class UserServiceImpl implements UserService {
                 mailMessageProducer.sendSms(mailMessageDto);
             }catch (Exception ex) {
                 log.error("Failed to publish sms message", ex);
-                throw new PublishingException("Could not queue sms", ex);
             }
         }
         return ApiResponse.builder()

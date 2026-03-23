@@ -107,7 +107,7 @@ public class AuthController {
         return new ResponseEntity<>(apiResponse,apiResponse.getStatus());
     }
 
-    @PostMapping("/active-deleted-account")
+    @PostMapping("/re-activate-deleted-account")
     @Operation(summary = "8. Activate Deleted Account", operationId = "8", description = "Reactivate a previously deleted account by verifying the OTP sent to the user's email address")
     public ResponseEntity<ApiResponse> activeDeletedAccount(@Valid @RequestBody JwtRequest jwtRequest) throws AlreadyExists, MessagingException {
         ApiResponse apiResponse=authService.activeDeletedAccount(jwtRequest);

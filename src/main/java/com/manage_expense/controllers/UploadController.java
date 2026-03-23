@@ -25,7 +25,7 @@ public class UploadController {
     @Autowired
     private CloudinaryService cloudinaryService;
 
-    @PostMapping("/upload")
+    @PostMapping("/upload-file")
     public ResponseEntity<?> uploadFile(@RequestParam MultipartFile file) {
         ApiResponse apiResponse = ApiResponse.builder()
                 .message("File uploaded successfully")

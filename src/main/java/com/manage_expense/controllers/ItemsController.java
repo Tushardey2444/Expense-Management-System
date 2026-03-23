@@ -56,13 +56,13 @@ public class ItemsController {
                                                                           @PathVariable int budgetId,
                                                                           @RequestParam(value = "pageNumber", defaultValue = "0",required = false) int pageNumber,
                                                                           @RequestParam(value = "pageSize",defaultValue = "10",required = false) int pageSize,
-                                                                          @RequestParam(value = "sortBy", defaultValue = "budgetId",required = false) String sortBy,
+                                                                          @RequestParam(value = "sortBy", defaultValue = "itemId",required = false) String sortBy,
                                                                           @RequestParam(value = "sortDir",defaultValue = "desc",required = false) String sortDir
     ){
         return new ResponseEntity<>(itemService.getAllItemsByBudget(authentication.getName(), budgetId, pageNumber, pageSize, sortBy, sortDir), HttpStatus.OK);
     }
 
-    @DeleteMapping("/delete-multiple-item/{budgetId}")
+    @DeleteMapping("/delete-multiple-items/{budgetId}")
     @JsonView(AppViews.Delete.class)
     @Operation(summary = "5. Delete Multiple Items", description = "Delete multiple items within a specified budget. Requires authentication and appropriate permissions.")
     public ResponseEntity<List<ItemResponse>> deleteMultipleItem(Authentication authentication, @RequestBody List<Integer> itemIds, @PathVariable int budgetId){

@@ -1,7 +1,6 @@
 package com.manage_expense.repository;
 
 import com.manage_expense.entities.Category;
-import com.manage_expense.entities.Items;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -22,27 +21,94 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     boolean existsByCategoryNameAndUserIsNullAndParentCategoryIsNull(String categoryName);
 
     // To check if a sub category with the same name already exists for a user (including default categories)
-    boolean existsByCategoryNameAndUser_UserIdAndParentCategoryCategoryId(String categoryName, int userId, Long parentId);
+    @Query("""
+        SELECT COUNT(c) > 0 FROM Category c
+        WHERE LOWER(c.categoryName) = LOWER(:categoryName)
+        AND c.parentCategory.categoryId = :parentId
+        AND (c.user.userId = :userId OR c.isDefault = true)
+    """)
+    boolean searchDefaultOrCustomSubCategoryWithSubCategoryName(String categoryName, Long parentId, int userId);
+
+    @Query("""
+        SELECT COUNT(c) > 0 FROM Category c
+        WHERE LOWER(c.categoryName) = LOWER(:categoryName)
+        AND c.parentCategory.categoryId = :parentId
+    """)
+    boolean searchDefaultSubCategoryWithSubCategoryName(String categoryName, Long parentId);
+
+    boolean existsByCategoryNameAndParentCategoryIsNull(String categoryName);
+
+    boolean existsByCategoryNameAndParentCategoryCategoryId(String categoryName, Long categoryId);
+
+    @Query(value = """
+        SELECT c
+        FROM Category c
+        WHERE c.parentCategory.categoryId = :categoryId
+        AND (c.user.userId = :userId OR c.isDefault = true)
+    """, countQuery = """
+        SELECT count(*)
+        FROM Category c
+        WHERE c.parentCategory.categoryId = :categoryId
+        AND (c.user.userId = :userId OR c.isDefault = true)
+    """)
+    Page<Category> findCustomOrDefaultSubCategoriesForParentCategory(
+                                                        @Param("categoryId") Long categoryId,
+                                                        @Param("userId") int userId,
+                                                        Pageable pageable);
+
 
     @Query("""
         SELECT c
         FROM Category c
+        WHERE c.categoryId = :categoryId
+        AND c.isDefault = true
+        AND c.parentCategory IS NULL
+        AND c.user IS NULL
+    """)
+    Optional<Category> findDefaultParentCategory(@Param("categoryId") Long categoryId);
+
+    @Query(value = """
+        SELECT c
+        FROM Category c
+        WHERE c.parentCategory IS NULL
+        AND (c.isDefault = true OR c.user.userId = :userId)
+    """, countQuery = """
+        SELECT count(*)
+        FROM Category c
         WHERE c.parentCategory IS NULL
         AND (c.isDefault = true OR c.user.userId = :userId)
     """)
-    List<Category> findParentCategoriesForUser(@Param("userId") int userId);
+    Page<Category> findParentCategoriesForUser(@Param("userId") int userId, Pageable pageable);
 
     @Query("""
         SELECT DISTINCT c
         FROM Category c
         LEFT JOIN FETCH c.subCategories
         WHERE c.categoryId = :categoryId
-        AND c.user.userId = :userId
+        AND (c.user.userId = :userId OR c.isDefault = true)
         AND c.parentCategory IS NULL
-        AND c.isDefault = false
     """)
-    Optional<Category> findCustomParentCategoryWithSubCategoriesByUserId(@Param("categoryId") Long categoryId,
+    Optional<Category> findCustomOrDefaultParentCategoryWithSubCategoriesByUserId(@Param("categoryId") Long categoryId,
                                                           @Param("userId") int userId);
+
+    @Query("""
+        SELECT DISTINCT c
+        FROM Category c
+        LEFT JOIN FETCH c.subCategories
+        WHERE c.categoryId = :categoryId
+        AND c.isDefault = true
+        AND c.user IS NULL
+    """)
+    Optional<Category> findDefaultCategoryOrSubCategory(@Param("categoryId") Long categoryId);
+
+    @Query("""
+        SELECT DISTINCT c
+        FROM Category c
+        WHERE c.categoryId = :categoryId
+        AND c.isDefault = true
+        AND c.user IS NULL
+    """)
+    Optional<Category> findPartialDefaultCategoryOrSubCategory(@Param("categoryId") Long categoryId);
 
     @Query("""
         SELECT DISTINCT c
@@ -68,12 +134,11 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
     @Query("""
         SELECT DISTINCT c
         FROM Category c
-        LEFT JOIN FETCH c.subCategories
         WHERE c.categoryId = :categoryId
         AND (c.user.userId = :userId OR c.isDefault = true)
         AND c.parentCategory IS NULL
     """)
-    Optional<Category> findDefaultOrCustomParentCategoryWithSubCategoriesByUserId(@Param("categoryId") Long categoryId,
+    Optional<Category> findDefaultOrCustomParentCategoryByUserId(@Param("categoryId") Long categoryId,
                                                                        @Param("userId") int userId);
 
 
@@ -132,9 +197,34 @@ public interface CategoryRepository extends JpaRepository<Category, Long> {
             @Param("userId") int userId
     );
 
-    boolean existsByCategoryNameAndParentCategoryCategoryIdAndUserUserId(
-            String categoryName,
-            Long parentCategoryId,
-            int userId
-    );
+
+    @Query(value = """
+        Select c.categoryName
+        FROM Category c
+        WHERE c.parentCategory IS NULL
+        AND c.isDefault = false
+        AND c.user.userId != :userId
+    """, countQuery = """
+        Select count(*)
+        FROM Category c
+        WHERE c.parentCategory IS NULL
+        AND c.isDefault = false
+        AND c.user.userId != :userId
+    """)
+    Page<String> findCustomParentCategoryNameSuggestions(@Param("userId") int userId, Pageable pageable);
+
+    @Query(value = """
+        Select c.categoryName
+        FROM Category c
+        WHERE c.parentCategory IS NOT NULL
+        AND c.isDefault = false
+        AND c.user.userId != :userId
+    """, countQuery = """
+        Select count(*)
+        FROM Category c
+        WHERE c.parentCategory IS NOT NULL
+        AND c.isDefault = false
+        AND c.user.userId != :userId
+    """)
+    Page<String> findCustomSubCategoryNameSuggestions(@Param("userId") int userId, Pageable pageable);
 }

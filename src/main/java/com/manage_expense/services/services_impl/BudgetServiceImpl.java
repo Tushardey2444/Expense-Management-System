@@ -54,7 +54,7 @@ public class BudgetServiceImpl implements BudgetService {
     public BudgetResponse createBudget(String email, BudgetCreateRequest budgetCreateRequest) {
         User user = userRepository.findBudgetsByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email."));
 
-        Category parentCategory = categoryRepository.findDefaultOrCustomParentCategoryWithSubCategoriesByUserId(budgetCreateRequest.getCategoryId(), user.getUserId())
+        Category parentCategory = categoryRepository.findDefaultOrCustomParentCategoryByUserId(budgetCreateRequest.getCategoryId(), user.getUserId())
                 .orElseThrow(() -> new IllegalStateException("Parent category not found with provided categoryId"));
 
         if(budgetCreateRequest.getEndDate().isAfter(budgetCreateRequest.getStartDate())) {

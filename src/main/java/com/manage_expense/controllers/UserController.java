@@ -34,8 +34,8 @@ public class UserController {
             Authentication authentication,
             @RequestParam(value = "pageNumber", defaultValue = "0",required = false) int pageNumber,
             @RequestParam(value = "pageSize",defaultValue = "10",required = false) int pageSize,
-            @RequestParam(value = "sortBy", defaultValue = "email",required = false) String sortBy,
-            @RequestParam(value = "sortDir",defaultValue = "asc",required = false) String sortDir
+            @RequestParam(value = "sortBy", defaultValue = "userId",required = false) String sortBy,
+            @RequestParam(value = "sortDir",defaultValue = "desc",required = false) String sortDir
     ){
         return ResponseEntity.ok(userService.getAllUsers(authentication.getName(),pageNumber,pageSize,sortBy,sortDir));
     }

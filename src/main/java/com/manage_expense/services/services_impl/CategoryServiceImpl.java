@@ -2,22 +2,21 @@ package com.manage_expense.services.services_impl;
 
 import com.manage_expense.dtos.dto_requests.CreateCategoryRequest;
 import com.manage_expense.dtos.dto_requests.UpdateCategoryRequest;
+import com.manage_expense.dtos.dto_responses.ApiResponse;
 import com.manage_expense.dtos.dto_responses.CategoryResponse;
-import com.manage_expense.dtos.dto_responses.CategoryResponses;
 import com.manage_expense.dtos.dto_responses.ItemsResponseDto;
 import com.manage_expense.dtos.dto_responses.PageableResponse;
-import com.manage_expense.entities.Budget;
-import com.manage_expense.entities.Category;
-import com.manage_expense.entities.Items;
-import com.manage_expense.entities.User;
+import com.manage_expense.entities.*;
 import com.manage_expense.helper.Helper;
 import com.manage_expense.repository.BudgetRepository;
 import com.manage_expense.repository.CategoryRepository;
 import com.manage_expense.repository.ItemRepository;
 import com.manage_expense.repository.UserRepository;
 import com.manage_expense.services.services_template.CategoryService;
+import com.manage_expense.services.services_template.CloudinaryService;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,13 +25,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 public class CategoryServiceImpl implements CategoryService {
@@ -53,66 +51,63 @@ public class CategoryServiceImpl implements CategoryService {
     private ItemRepository itemRepository;
 
     @Autowired
+    private CloudinaryService cloudinaryService;
+
+    @Autowired
     private Helper helper;
 
-    public CategoryResponses categoryToCategoryResponses(Category category) {
+    @Value("${category_icon_url}")
+    private String categoryIconUrl;
 
-        return CategoryResponses.builder()
-                .categoryId(category.getCategoryId())
-                .categoryName(category.getCategoryName())
-                .description(category.getDescription())
-                .isDefault(category.isDefault())
-                .parentCategoryId(
-                        category.getParentCategory() != null
-                                ? category.getParentCategory().getCategoryId()
-                                : null
-                )
-                .createdAt(category.getCreatedAt())
-                .subCategories(
-                        category.getSubCategories()
-                                .stream()
-                                .map(this::categoryToCategoryResponses)
-                                .collect(Collectors.toSet())
-                )
-                .build();
+    @Override
+    @Transactional(readOnly = true)
+    public PageableResponse<CategoryResponse> getParentCategories(String email,
+                                                      int pageNumber,
+                                                      int pageSize,
+                                                      String sortBy,
+                                                      String sortDir) {
+
+        User user = userRepository.findForAuthByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
+
+        Sort sort=(sortDir.equalsIgnoreCase("desc"))?(Sort.by(sortBy).descending()):(Sort.by(sortBy).ascending());
+        Pageable pageable = PageRequest.of(pageNumber,pageSize,sort);
+
+        Page<Category> parentCategories = categoryRepository.findParentCategoriesForUser(user.getUserId(), pageable);
+
+        return helper.getPageableResponse(parentCategories, CategoryResponse.class);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<CategoryResponse> getParentCategories(String email) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
+    public PageableResponse<CategoryResponse> getSubCategories(String email,
+                                              Long categoryId,
+                                              int pageNumber,
+                                              int pageSize,
+                                              String sortBy,
+                                              String sortDir) {
+        User user = userRepository.findForAuthByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
 
-        List<Category> parentCategories = categoryRepository.findParentCategoriesForUser(user.getUserId());
-        List<CategoryResponse> categoryResponses = new ArrayList<>();
+        Category parentCategory = categoryRepository.findDefaultOrCustomParentCategoryByUserId(categoryId, user.getUserId())
+                .orElseThrow(() -> new IllegalStateException("Default or custom parent category not found with provided categoryId"));
 
-        for(Category category: parentCategories){
-            CategoryResponse categoryResponse =  modelMapper.map(category, CategoryResponse.class);
-            categoryResponses.add(categoryResponse);
-        }
+        Sort sort=(sortDir.equalsIgnoreCase("desc"))?(Sort.by(sortBy).descending()):(Sort.by(sortBy).ascending());
 
-        return categoryResponses;
-    }
+        Pageable pageable = PageRequest.of(pageNumber,pageSize,sort);
 
-    @Override
-    @Transactional(readOnly = true)
-    public CategoryResponses getSubCategories(String email, Long categoryId) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
+        Page<Category> subCategories = categoryRepository.findCustomOrDefaultSubCategoriesForParentCategory(parentCategory.getCategoryId(), user.getUserId(), pageable);
 
-        Category category = categoryRepository.findDefaultOrCustomParentCategoryWithSubCategoriesByUserId(categoryId, user.getUserId()).orElseThrow(() -> new IllegalStateException("Parent category not found for current user!!"));
-
-        CategoryResponses categoryResponses = categoryToCategoryResponses(category);
-        categoryResponses.setParentCategoryId(null);
-        return categoryResponses;
+        return helper.getPageableResponse(subCategories, CategoryResponse.class);
     }
 
     @Override
     @Transactional
     public CategoryResponse createCategory(String email, CreateCategoryRequest request) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
+        User user = userRepository.findForAuthByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
 
         String categoryName  = request.getCategoryName().trim();
         Category category = Category.builder()
                 .categoryName(categoryName)
+                .categoryIcon(categoryIconUrl)
                 .isDefault(false)
                 .description(request.getDescription())
                 .parentCategory(null)
@@ -131,11 +126,11 @@ public class CategoryServiceImpl implements CategoryService {
 
         }else{
             Category parentCategory = categoryRepository
-                    .findCustomParentCategoryWithSubCategoriesByUserId(request.getParentCategoryId(), user.getUserId())
-                    .orElseThrow(() -> new IllegalStateException("Custom parent category not found with provided parent categoryId !!"));
+                    .findCustomOrDefaultParentCategoryWithSubCategoriesByUserId(request.getParentCategoryId(), user.getUserId())
+                    .orElseThrow(() -> new IllegalStateException("Default or custom parent category not found with provided parent categoryId !!"));
 
-            if(categoryRepository.existsByCategoryNameAndUser_UserIdAndParentCategoryCategoryId(categoryName, user.getUserId(), parentCategory.getCategoryId())){
-                throw new IllegalStateException("Custom sub category already exists with provided name under provided parent category !!");
+            if(categoryRepository.searchDefaultOrCustomSubCategoryWithSubCategoryName(categoryName, parentCategory.getCategoryId(), user.getUserId())){
+                throw new IllegalStateException("Default or custom sub category already exists with provided name under parent category !!");
             }
 
             parentCategoryId = parentCategory.getCategoryId();
@@ -155,19 +150,68 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional
-    public CategoryResponse updateCategory(String email, Long categoryId, UpdateCategoryRequest request) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
+    public ApiResponse updateCategoryIcon(String email, Long categoryId, MultipartFile file) throws IOException {
+        User user = userRepository.findForAuthByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email !!"));
 
         Category category = categoryRepository.findCustomCategoryOrSubCategory(categoryId, user.getUserId())
-                .orElseThrow(() -> new IllegalStateException("Custom category not found with provided categoryId !!"));
+                .orElseThrow(() -> new IllegalStateException("Custom category or subCategory not found with provided categoryId !!"));
+
+        String url = null;
+
+        if(file==null){
+            throw new IOException("Please select a category icon of size upto 1MB !!");
+        }
+
+        if(!file.isEmpty()){
+            String originalName = file.getOriginalFilename();
+            if(originalName!=null){
+
+                int dot = originalName.lastIndexOf(".");
+                String extension = dot == -1 ? "" : originalName.substring(dot + 1);
+
+                if(extension.equals("jpg") || extension.equals("png") || extension.equals("jpeg")){
+                    try {
+                        url = cloudinaryService.upload(file);
+                    }catch (IOException e){
+                        throw new IOException("Failed to upload category icon, please try again !!");
+                    }
+                }else{
+                    throw new IllegalArgumentException("File extension supported only JPG, PNG and JPEG !!");
+                }
+            }
+        }
+
+        ApiResponse apiResponse = ApiResponse.builder().build();
+
+        if(url==null){
+            apiResponse.setMessage("Provided file is not valid, please select a valid category icon of size upto 1MB.");
+            apiResponse.setStatus(HttpStatus.BAD_REQUEST);
+            apiResponse.setSuccess(false);
+            return apiResponse;
+        }
+
+        category.setCategoryIcon(url);
+        categoryRepository.save(category);
+
+        apiResponse.setMessage(url);
+        apiResponse.setSuccess(true);
+        apiResponse.setStatus(HttpStatus.OK);
+        return apiResponse;
+    }
+
+    @Override
+    @Transactional
+    public CategoryResponse updateCategory(String email, Long categoryId, UpdateCategoryRequest request) {
+        User user = userRepository.findForAuthByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email !!"));
+
+        Category category = categoryRepository.findCustomCategoryOrSubCategory(categoryId, user.getUserId())
+                .orElseThrow(() -> new IllegalStateException("Custom category or subCategory not found with provided categoryId !!"));
 
         String newCategoryName = request.getCategoryName().trim();
 
-        if (category.getParentCategory() == null) {
+        Category parentCategory = category.getParentCategory();
 
-            if (request.getParentCategoryId() != null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provided categoryId is a parent category, parent category can't be change to sub category");
-            }
+        if (parentCategory == null) {
 
             if (!category.getCategoryName().equalsIgnoreCase(newCategoryName)) {
                 Optional<Category> existCategory = categoryRepository.findParentCategoryByNameForUserOrDefault(
@@ -176,35 +220,22 @@ public class CategoryServiceImpl implements CategoryService {
                 );
 
                 if (existCategory.isPresent()) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Default / Custom parent category already exist with same category name");
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Default or custom parent category already exist with same category name");
                 }
 
                 category.setCategoryName(newCategoryName);
             }
 
         } else {
-            if (request.getParentCategoryId() == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provided categoryId is a sub category, sub category can't be change to parent category");
-            }
 
-            Category parentCategory = categoryRepository.findCustomParentCategoryWithSubCategoriesByUserId(
-                    request.getParentCategoryId(), user.getUserId()
-            ).orElseThrow(() -> new IllegalStateException("Custom parent category not found with provided parent categoryId !!"));
-
-            boolean isParentChange = !category.getParentCategory().getCategoryId().equals(request.getParentCategoryId());
-
-            if(!category.getCategoryName().equalsIgnoreCase(newCategoryName) || isParentChange) {
-                if(categoryRepository.existsByCategoryNameAndParentCategoryCategoryIdAndUserUserId(
+            if(!category.getCategoryName().equalsIgnoreCase(newCategoryName)) {
+                if(categoryRepository.searchDefaultOrCustomSubCategoryWithSubCategoryName(
                         newCategoryName,
                         parentCategory.getCategoryId(),
                         user.getUserId())){
-                    throw new IllegalStateException("Another sub category already exist with same name in the parent category !!");
+                    throw new IllegalStateException("Default or custom sub category already exists with provided name under parent category !!");
                 }
-
                 category.setCategoryName(newCategoryName);
-                if(isParentChange){
-                    category.setParentCategory(parentCategory);
-                }
             }
         }
 
@@ -217,10 +248,10 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public void deleteCategory(String email, Long categoryId) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
+        User user = userRepository.findForAuthByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
 
         Category category = categoryRepository
-                .findCustomCategoryOrSubCategoryByUserId(categoryId, user.getUserId()).orElseThrow(() -> new IllegalStateException("Category or SubCategory not found with provided categoryId !!"));
+                .findCustomCategoryOrSubCategoryByUserId(categoryId, user.getUserId()).orElseThrow(() -> new IllegalStateException("Custom category or subCategory not found with provided categoryId !!"));
 
         Long existCategoryId = category.getCategoryId();
 
@@ -231,7 +262,7 @@ public class CategoryServiceImpl implements CategoryService {
             Set<Category> subCategories = category.getSubCategories();
             for(Category subCategory: subCategories){
                 if(categoryRepository.countItemsByCategoryId(subCategory.getCategoryId())>0){
-                    throw new IllegalStateException("Can't delete parent category, few items are currently using the subcategory of parent category with id: " + existCategoryId);
+                    throw new IllegalStateException("Can't delete parent category, few items are currently using the subcategory which is under the parent category with id: " + existCategoryId);
                 }
             }
             category.getSubCategories().clear();
@@ -277,22 +308,200 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     @Override
-    public CategoryResponses createDefaultCategory(String email, CreateCategoryRequest request) {
-        return null;
+    public CategoryResponse createDefaultCategory(String email, CreateCategoryRequest request) {
+        userRepository.findForAuthByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email"));
+
+        String categoryName  = request.getCategoryName().trim();
+        Category category = Category.builder()
+                .categoryName(categoryName)
+                .categoryIcon(categoryIconUrl)
+                .isDefault(true)
+                .description(request.getDescription())
+                .parentCategory(null)
+                .user(null)
+                .build();
+
+        Long parentCategoryId = null;
+
+        if(request.getParentCategoryId() == null){
+
+            if(categoryRepository.existsByCategoryNameAndParentCategoryIsNull(categoryName)){
+                throw new IllegalStateException("Default or Custom parent category already exists for an existing user with provided category name");
+            }
+
+        }else{
+            Category parentCategory = categoryRepository
+                    .findDefaultParentCategory(request.getParentCategoryId())
+                    .orElseThrow(() -> new IllegalStateException("Default parent category not found with provided parent categoryId !!"));
+
+            if(categoryRepository.existsByCategoryNameAndParentCategoryCategoryId(categoryName, parentCategory.getCategoryId())){
+                throw new IllegalStateException("Default subCategory already exists with provided name under default parent category !!");
+            }
+
+            parentCategoryId = parentCategory.getCategoryId();
+            category.setParentCategory(parentCategory);
+            parentCategory.getSubCategories().add(category);
+        }
+
+        Category savedCategory = categoryRepository.save(category);
+        categoryRepository.flush();
+        CategoryResponse categoryResponse = modelMapper.map(savedCategory, CategoryResponse.class);
+        categoryResponse.setParentCategoryId(parentCategoryId);
+
+        return categoryResponse;
     }
 
     @Override
-    public CategoryResponses updateDefaultCategory(String email, Long categoryId, UpdateCategoryRequest request) {
-        return null;
+    public CategoryResponse updateDefaultCategory(String email, Long categoryId, UpdateCategoryRequest request) {
+        userRepository.findForAuthByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email !!"));
+
+        Category category = categoryRepository.findPartialDefaultCategoryOrSubCategory(categoryId)
+                .orElseThrow(() -> new IllegalStateException("Default category or subCategory not found with provided categoryId !!"));
+
+        String newCategoryName = request.getCategoryName().trim();
+
+        Category parentCategory = category.getParentCategory();
+
+        if (parentCategory == null) {
+
+            if (!category.getCategoryName().equalsIgnoreCase(newCategoryName)) {
+                if(categoryRepository.existsByCategoryNameAndParentCategoryIsNull(newCategoryName)){
+                    throw new IllegalStateException("Default or custom parent category already exists for some existing users with provided category name");
+                }
+
+                category.setCategoryName(newCategoryName);
+            }
+
+        } else {
+
+            if(!category.getCategoryName().equalsIgnoreCase(newCategoryName)) {
+                if(categoryRepository.searchDefaultSubCategoryWithSubCategoryName(
+                        newCategoryName,
+                        parentCategory.getCategoryId())){
+                    throw new IllegalStateException("Default or custom subCategory already exists for some users with provided name under the parent category !!");
+                }
+                category.setCategoryName(newCategoryName);
+            }
+        }
+
+        category.setDescription(request.getDescription());
+        Category savedCategory = categoryRepository.save(category);
+        categoryRepository.flush();
+        return modelMapper.map(savedCategory, CategoryResponse.class);
+    }
+
+    @Override
+    public ApiResponse updateDefaultCategoryIcon(String email, Long categoryId, MultipartFile file) throws IOException{
+        userRepository.findForAuthByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email !!"));
+
+        Category category = categoryRepository.findPartialDefaultCategoryOrSubCategory(categoryId)
+                .orElseThrow(() -> new IllegalStateException("Default category or subCategory not found with provided categoryId !!"));
+
+        String url = null;
+
+        if(file==null){
+            throw new IOException("Please select a category icon of size upto 1MB !!");
+        }
+
+        if(!file.isEmpty()){
+            String originalName = file.getOriginalFilename();
+            if(originalName!=null){
+
+                int dot = originalName.lastIndexOf(".");
+                String extension = dot == -1 ? "" : originalName.substring(dot + 1);
+
+                if(extension.equals("jpg") || extension.equals("png") || extension.equals("jpeg")){
+                    try {
+                        url = cloudinaryService.upload(file);
+                    }catch (IOException e){
+                        throw new IOException("Failed to upload category icon, please try again !!");
+                    }
+                }else{
+                    throw new IllegalArgumentException("File extension supported only JPG, PNG and JPEG !!");
+                }
+            }
+        }
+
+        ApiResponse apiResponse = ApiResponse.builder().build();
+
+        if(url==null){
+            apiResponse.setMessage("Provided file is not valid, please select a valid category icon of size upto 1MB.");
+            apiResponse.setStatus(HttpStatus.BAD_REQUEST);
+            apiResponse.setSuccess(false);
+            return apiResponse;
+        }
+
+        category.setCategoryIcon(url);
+        categoryRepository.save(category);
+
+        apiResponse.setMessage(url);
+        apiResponse.setSuccess(true);
+        apiResponse.setStatus(HttpStatus.OK);
+        return apiResponse;
     }
 
     @Override
     public void deleteDefaultCategory(String email, Long categoryId) {
+        userRepository.findForAuthByEmail(email).orElseThrow(() -> new UsernameNotFoundException("User not found with provided email !!"));
 
+        Category category = categoryRepository
+                .findDefaultCategoryOrSubCategory(categoryId).orElseThrow(() -> new IllegalStateException("Default Category or SubCategory not found with provided categoryId !!"));
+
+        Long existCategoryId = category.getCategoryId();
+
+        if(category.getParentCategory() == null){
+            if(categoryRepository.countBudgetsByCategoryId(existCategoryId)>0){
+                throw new IllegalStateException("Can't delete default parent category as this category contains budgets for some users !!");
+            }
+            Set<Category> subCategories = category.getSubCategories();
+            for(Category subCategory: subCategories){
+               if(!subCategory.isDefault()){
+                   throw new IllegalStateException("Can't delete default parent category as this category contains custom subCategories for some users !!");
+               }
+            }
+            category.getSubCategories().clear();
+        }else{
+            if(categoryRepository.countItemsByCategoryId(existCategoryId)>0){
+                throw new IllegalStateException("Can't delete default subCategory, few user's items are currently using the subCategory !!");
+            }
+        }
+
+        categoryRepository.delete(category);
     }
 
     @Override
-    public List<CategoryResponses> getCategories(String email) {
-        return List.of();
+    public PageableResponse<String> getSuggestionsOfParentCategoryNameForUser(String email,
+                                                                        int pageNumber,
+                                                                        int pageSize,
+                                                                        String sortBy,
+                                                                        String sortDir) {
+        User user = userRepository.findForAuthByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with provided email."));
+
+        Sort sort=(sortDir.equalsIgnoreCase("desc"))?(Sort.by(sortBy).descending()):(Sort.by(sortBy).ascending());
+        Pageable pageable = PageRequest.of(pageNumber,pageSize,sort);
+
+        Page<String> subCategoryNameList = categoryRepository
+                .findCustomParentCategoryNameSuggestions(user.getUserId(), pageable);
+
+        return helper.getPageableResponse(subCategoryNameList, String.class);
+    }
+
+    @Override
+    public PageableResponse<String> getSuggestionsOfSubCategoryNameForUser(String email,
+                                                                           int pageNumber,
+                                                                           int pageSize,
+                                                                           String sortBy,
+                                                                           String sortDir) {
+        User user = userRepository.findForAuthByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with provided email."));
+
+        Sort sort=(sortDir.equalsIgnoreCase("desc"))?(Sort.by(sortBy).descending()):(Sort.by(sortBy).ascending());
+        Pageable pageable = PageRequest.of(pageNumber,pageSize,sort);
+
+        Page<String> subCategoryNameList = categoryRepository
+                .findCustomSubCategoryNameSuggestions(user.getUserId(), pageable);
+
+        return helper.getPageableResponse(subCategoryNameList, String.class);
     }
 }

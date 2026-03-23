@@ -36,7 +36,7 @@ public interface UserRepository extends JpaRepository<User,Integer> {
     )
     Optional<User> findBudgetsByEmail(String email);
 
-    @EntityGraph(attributePaths = "roles")
+    @EntityGraph(type = EntityGraph.EntityGraphType.LOAD, attributePaths = "roles")
     Optional<User> findForAuthByEmail(String email);
 
     void deleteByEmail(String email);

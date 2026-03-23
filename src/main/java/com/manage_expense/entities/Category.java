@@ -45,6 +45,8 @@ public class Category {
     @Column(length = 200)
     private String description;
 
+    private String categoryIcon;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
